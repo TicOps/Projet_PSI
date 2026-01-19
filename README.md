@@ -7,3 +7,6 @@ sauvegarder les fichiers modifiers
 git add . 
 git commit -m"ajout du fichier gitignore"
 git push
+commande écraser en récupérant les fichiers du git:
+git fetch origin 
+git reset --hard origin/main
