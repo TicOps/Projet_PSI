@@ -23,7 +23,7 @@ git pull
 # Identification des collections
 - Tableau 2D classique (tab[,]) : Très simple mais de taille fixe.
 - Tableau de tableaux (tab[][]) : Permet une certaine flexibilité, mais peut être plus complexe à gérer au niveau de l'accès mémoire.
-- Liste de listes (List<List<T>>) : Offre une grande flexibilité et des fonctionnalités supplémentaires, mais peut être plus complexe à implémenter.
+- Liste de listes (`List<List<T>>`) : Offre une grande flexibilité et des fonctionnalités supplémentaires, mais peut être plus complexe à implémenter.
 
 # Complexité des opérations (m = lignes, n = colonnes)
 
