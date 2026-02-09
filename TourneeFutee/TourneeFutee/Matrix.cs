@@ -1,9 +1,15 @@
-﻿namespace TourneeFutee
+﻿using System;
+using System.Collections.Generic;
+
+namespace TourneeFutee
 {
     public class Matrix
     {
-        // TODO : ajouter tous les attributs que vous jugerez pertinents 
-
+        // Attributs
+        private readonly float _defaultValue;               // valeur par défaut pour nouvelles cellules
+        private List<List<float>> _cells;                    // stockage dynamique par lignes
+        private int _nbRows;                                 // nombre actuel de lignes
+        private int _nbColumns;                              // nombre actuel de colonnes
 
         /* Crée une matrice de dimensions `nbRows` x `nbColums`.
          * Toutes les cases de cette matrice sont remplies avec `defaultValue`.
@@ -11,31 +17,44 @@
          */
         public Matrix(int nbRows = 0, int nbColumns = 0, float defaultValue = 0)
         {
-            // TODO : implémenter
+            if (nbRows < 0) throw new ArgumentOutOfRangeException(nameof(nbRows), "nbRows ne peut pas être négatif");
+            if (nbColumns < 0) throw new ArgumentOutOfRangeException(nameof(nbColumns), "nbColumns ne peut pas être négatif");
+
+            _defaultValue = defaultValue;
+            _nbRows = nbRows;
+            _nbColumns = nbColumns;
+
+            _cells = new List<List<float>>(nbRows);
+            for (int i = 0; i < nbRows; i++)
+            {
+                var row = new List<float>(nbColumns);
+                for (int j = 0; j < nbColumns; j++)
+                {
+                    row.Add(defaultValue);
+                }
+                _cells.Add(row);
+            }
         }
 
         // Propriété : valeur par défaut utilisée pour remplir les nouvelles cases
         // Lecture seule
         public float DefaultValue
         {
-            get; // TODO : implémenter
-                 // pas de set
+            get { return _defaultValue; }
         }
 
         // Propriété : nombre de lignes
         // Lecture seule
         public int NbRows
         {
-            get; // TODO : implémenter
-                 // pas de set
+            get { return _nbRows; }
         }
 
         // Propriété : nombre de colonnes
         // Lecture seule
         public int NbColumns
         {
-            get; // TODO : implémenter
-                 // pas de set
+            get { return _nbColumns; }
         }
 
         /* Insère une ligne à l'indice `i`. Décale les lignes suivantes vers le bas.
