@@ -1,7 +1,7 @@
 # Projet_PSI
 Projet Problème Scientifique A2 - Membres : Heinz Ruben, Dormeux Enzo, Haime Ahsir
 
-# commandes github
+# Commandes github
 pour envoyer sur le serveur distant : 
 sauvegarder les fichiers modifiers: ctrl+s
 ``` bash
@@ -23,7 +23,7 @@ git pull
 # Identification des collections
 - Tableau 2D classique (tab[,]) : Très simple mais de taille fixe.
 - Tableau de tableaux (tab[][]) : Permet une certaine flexibilité, mais peut être plus complexe à gérer au niveau de l'accès mémoire.
-- Liste de listes (List<T>) : Offre une grande flexibilité et des fonctionnalités supplémentaires, mais peut être plus complexe à implémenter.
+- Liste de listes (List<List<T>>) : Offre une grande flexibilité et des fonctionnalités supplémentaires, mais peut être plus complexe à implémenter.
 
 # Complexité des opérations (m = lignes, n = colonnes)
 
@@ -38,6 +38,6 @@ git pull
 | Suppression colonne (début / milieu) | O(m × n) | O(m × n) | O(m × n) |
 
 
-# Justification du choix de la structure de données
-Accès aux valeurs : Les trois structures offrent une complexité de $O(1)$.
-Optimisation des opérations : La structure List<List<T>> minimise la complexité des ajouts de lignes (passage de $O(m \times n)$ à $O(1)$ ou $O(m)$) et facilite l'ajout de colonnes par rapport aux tableaux fixes.
+# Points clés de complexité
+- L’accès aux éléments est en **O(1)** pour toutes les structures.
+- `List<List<T>>` est la structure la plus flexible pour des données dynamiques, en particulier pour l’ajout de lignes et de colonnes.
