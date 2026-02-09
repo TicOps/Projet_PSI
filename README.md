@@ -19,4 +19,3 @@ git reset --hard origin/main
 ``` bash
 git pull
 ```
->>>>>>> 9fad14e3af349526d02e85f9e7adebcf4f94a8ea
