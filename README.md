@@ -38,6 +38,8 @@ git pull
 | Suppression colonne (début / milieu) | O(m × n) | O(m × n) | O(m × n) |
 
 
-# Points clés de complexité
-- L’accès aux éléments est en **O(1)** pour toutes les structures.
-- `List<List<T>>` est la structure la plus flexible pour des données dynamiques, en particulier pour l’ajout de lignes et de colonnes.
+# Choix de la collection
+Les trois structures (`T[,]`, `T[][]` et `List<List<T>>`) permettent un accès aux valeurs en **O(1)**.
+
+À complexité d’accès équivalente, la structure **`List<List<T>>`** est à privilégier, car elle minimise le coût des opérations de modification (ajout et suppression de lignes ou de colonnes) et offre la meilleure facilité de mise en œuvre grâce à son caractère dynamique.
+
