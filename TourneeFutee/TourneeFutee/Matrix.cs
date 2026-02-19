@@ -64,7 +64,24 @@ namespace TourneeFutee
          */
         public void AddRow(int i)
         {
-            // TODO : implémenter
+            // Vérifier l'indice : il est valide si 0 <= i <= _nbRows (insertion en fin autorisée)
+            if (i < 0 || i > _nbRows)
+            {
+                throw new ArgumentOutOfRangeException(nameof(i), "i est en dehors des indices valides");
+            }
+
+            // Créer la nouvelle ligne remplie avec la valeur par défaut
+            var newRow = new List<float>(_nbColumns);
+            for (int col = 0; col < _nbColumns; col++)
+            {
+                newRow.Add(_defaultValue);
+            }
+
+            // Insérer la ligne à la position demandée
+            _cells.Insert(i, newRow);
+
+            // Mettre à jour le nombre de lignes
+            _nbRows++;
         }
 
         /* Insère une colonne à l'indice `j`. Décale les colonnes suivantes vers la droite.
