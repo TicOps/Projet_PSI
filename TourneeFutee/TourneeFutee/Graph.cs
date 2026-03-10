@@ -1,133 +1,170 @@
-﻿namespace TourneeFutee
+﻿using System;
+using System.Collections.Generic;
+
+namespace TourneeFutee
 {
     public class Graph
     {
+        private bool _directed;
+        private Matrix _adjacency;
+        private List<string> _nomsSommets;
+        private Dictionary<string, int> _indicesSommets;
+        private Dictionary<string, float> _valeursSommets;
 
-        // TODO : ajouter tous les attributs que vous jugerez pertinents 
-
-
-        // --- Construction du graphe ---
-
-        // Contruit un graphe (`directed`=true => orienté)
-        // La valeur `noEdgeValue` est le poids modélisant l'absence d'un arc (0 par défaut)
-        public Graph(bool directed, float noEdgeValue = 0)
+        public Graph(bool directed)
         {
-            // TODO : implémenter
+            _directed = directed;
+            _adjacency = new Matrix(0, 0, float.NaN);
+            _nomsSommets = new List<string>();
+            _indicesSommets = new Dictionary<string, int>();
+            _valeursSommets = new Dictionary<string, float>();
         }
 
+        public bool IsDirected
+        {
+            get { return _directed; }
+        }
 
-        // --- Propriétés ---
-
-        // Propriété : ordre du graphe
-        // Lecture seule
         public int Order
         {
-            get;    // TODO : implémenter
-                    // pas de set
+            get { return _nomsSommets.Count; }
         }
 
-        // Propriété : graphe orienté ou non
-        // Lecture seule
-        public bool Directed
+        private int GetIndex(string nom)
         {
-            get;    // TODO : implémenter
-                    // pas de set
+            if (nom == null) throw new ArgumentNullException(nameof(nom));
+            if (!_indicesSommets.ContainsKey(nom)) throw new ArgumentException("Le sommet n'existe pas : " + nom);
+
+            return _indicesSommets[nom];
         }
 
-
-        // --- Gestion des sommets ---
-
-        // Ajoute le sommet de nom `name` et de valeur `value` (0 par défaut) dans le graphe
-        // Lève une ArgumentException s'il existe déjà un sommet avec le même nom dans le graphe
         public void AddVertex(string name, float value = 0)
         {
-            // TODO : implémenter
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            if (_indicesSommets.ContainsKey(name)) throw new ArgumentException("Un sommet avec ce nom existe déjà.");
+
+            int nouvelIndice = _nomsSommets.Count;
+
+            _nomsSommets.Add(name);
+            _indicesSommets.Add(name, nouvelIndice);
+            _valeursSommets.Add(name, value);
+
+            _adjacency.AddRow(nouvelIndice);
+            _adjacency.AddColumn(nouvelIndice);
         }
 
-
-        // Supprime le sommet de nom `name` du graphe (et tous les arcs associés)
-        // Lève une ArgumentException si le sommet n'a pas été trouvé dans le graphe
         public void RemoveVertex(string name)
         {
-            // TODO : implémenter
+            int index = GetIndex(name);
+
+            _adjacency.RemoveRow(index);
+            _adjacency.RemoveColumn(index);
+
+            _nomsSommets.RemoveAt(index);
+            _indicesSommets.Remove(name);
+            _valeursSommets.Remove(name);
+
+            for (int i = index; i < _nomsSommets.Count; i++)
+            {
+                _indicesSommets[_nomsSommets[i]] = i;
+            }
         }
 
-        // Renvoie la valeur du sommet de nom `name`
-        // Lève une ArgumentException si le sommet n'a pas été trouvé dans le graphe
         public float GetVertexValue(string name)
         {
-            // TODO : implémenter
-            return 0.0f;
+            GetIndex(name);
+            return _valeursSommets[name];
         }
 
-        // Affecte la valeur du sommet de nom `name` à `value`
-        // Lève une ArgumentException si le sommet n'a pas été trouvé dans le graphe
         public void SetVertexValue(string name, float value)
         {
-            // TODO : implémenter
+            GetIndex(name);
+            _valeursSommets[name] = value;
         }
 
-
-        // Renvoie la liste des noms des voisins du sommet de nom `vertexName`
-        // (si ce sommet n'a pas de voisins, la liste sera vide)
-        // Lève une ArgumentException si le sommet n'a pas été trouvé dans le graphe
-        public List<string> GetNeighbors(string vertexName)
+        public void AddEdge(string sourceName, string destinationName, float weight = 0)
         {
-            List<string> neighborNames = new List<string>();
+            int i = GetIndex(sourceName);
+            int j = GetIndex(destinationName);
 
-            // TODO : implémenter
+            if (!float.IsNaN(_adjacency.GetValue(i, j)))
+            {
+                throw new ArgumentException("Cet arc existe déjà.");
+            }
 
-            return neighborNames;
+            _adjacency.SetValue(i, j, weight);
+
+            if (!_directed && i != j)
+            {
+                _adjacency.SetValue(j, i, weight);
+            }
         }
 
-        // --- Gestion des arcs ---
-
-        /* Ajoute un arc allant du sommet nommé `sourceName` au sommet nommé `destinationName`, avec le poids `weight` (1 par défaut)
-         * Si le graphe n'est pas orienté, ajoute aussi l'arc inverse, avec le même poids
-         * Lève une ArgumentException dans les cas suivants :
-         * - un des sommets n'a pas été trouvé dans le graphe (source et/ou destination)
-         * - il existe déjà un arc avec ces extrémités
-         */
-        public void AddEdge(string sourceName, string destinationName, float weight = 1)
-        {
-            // TODO : implémenter
-        }
-
-        /* Supprime l'arc allant du sommet nommé `sourceName` au sommet nommé `destinationName` du graphe
-         * Si le graphe n'est pas orienté, supprime aussi l'arc inverse
-         * Lève une ArgumentException dans les cas suivants :
-         * - un des sommets n'a pas été trouvé dans le graphe (source et/ou destination)
-         * - l'arc n'existe pas
-         */
         public void RemoveEdge(string sourceName, string destinationName)
         {
-            // TODO : implémenter
+            int i = GetIndex(sourceName);
+            int j = GetIndex(destinationName);
+
+            if (float.IsNaN(_adjacency.GetValue(i, j)))
+            {
+                throw new ArgumentException("Cet arc n'existe pas.");
+            }
+
+            _adjacency.SetValue(i, j, float.NaN);
+
+            if (!_directed && i != j)
+            {
+                _adjacency.SetValue(j, i, float.NaN);
+            }
         }
 
-        /* Renvoie le poids de l'arc allant du sommet nommé `sourceName` au sommet nommé `destinationName`
-         * Si le graphe n'est pas orienté, GetEdgeWeight(A, B) = GetEdgeWeight(B, A) 
-         * Lève une ArgumentException dans les cas suivants :
-         * - un des sommets n'a pas été trouvé dans le graphe (source et/ou destination)
-         * - l'arc n'existe pas
-         */
         public float GetEdgeWeight(string sourceName, string destinationName)
         {
-            // TODO : implémenter
-            return 0.0f;
+            int i = GetIndex(sourceName);
+            int j = GetIndex(destinationName);
+
+            float poids = _adjacency.GetValue(i, j);
+
+            if (float.IsNaN(poids))
+            {
+                throw new ArgumentException("Cet arc n'existe pas.");
+            }
+
+            return poids;
         }
 
-        /* Affecte le poids l'arc allant du sommet nommé `sourceName` au sommet nommé `destinationName` à `weight` 
-         * Si le graphe n'est pas orienté, affecte le même poids à l'arc inverse
-         * Lève une ArgumentException si un des sommets n'a pas été trouvé dans le graphe (source et/ou destination)
-         */
         public void SetEdgeWeight(string sourceName, string destinationName, float weight)
         {
-            // TODO : implémenter
+            int i = GetIndex(sourceName);
+            int j = GetIndex(destinationName);
+
+            if (float.IsNaN(_adjacency.GetValue(i, j)))
+            {
+                throw new ArgumentException("Cet arc n'existe pas.");
+            }
+
+            _adjacency.SetValue(i, j, weight);
+
+            if (!_directed && i != j)
+            {
+                _adjacency.SetValue(j, i, weight);
+            }
         }
 
-        // TODO : ajouter toutes les méthodes que vous jugerez pertinentes 
+        public List<string> GetNeighbors(string vertexName)
+        {
+            int i = GetIndex(vertexName);
+            List<string> voisins = new List<string>();
 
+            for (int j = 0; j < _adjacency.NbColumns; j++)
+            {
+                if (!float.IsNaN(_adjacency.GetValue(i, j)))
+                {
+                    voisins.Add(_nomsSommets[j]);
+                }
+            }
+
+            return voisins;
+        }
     }
-
-
 }
