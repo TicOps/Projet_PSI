@@ -30,6 +30,8 @@ namespace TourneeFutee
             get { return _nomsSommets.Count; }
         }
 
+        public object Directed { get; set; }
+
         private int GetIndex(string nom)
         {
             if (nom == null) throw new ArgumentNullException(nameof(nom));
@@ -165,6 +167,11 @@ namespace TourneeFutee
             }
 
             return voisins;
+        }
+
+        public bool ContainsVertex(string name)
+        {
+            throw new NotImplementedException();
         }
     }
 }

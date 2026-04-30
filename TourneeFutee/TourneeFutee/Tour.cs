@@ -16,6 +16,10 @@ namespace TourneeFutee
             Cost = 0.0f;
         }
 
+        public Tour(List<string> list, float v)
+        {
+        }
+
         // Coût total de la tournée (lecture/écriture simple)
         public float Cost { get; set; }
 
@@ -24,6 +28,8 @@ namespace TourneeFutee
         {
             get { return _segments.Count; }
         }
+
+        public IList<string> Vertices { get; set; }
 
         // Ajoute un segment à la tournée
         public void AddSegment((string source, string destination) segment)
