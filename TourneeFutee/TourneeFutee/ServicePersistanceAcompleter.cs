@@ -10,172 +10,108 @@ namespace TourneeFutee
 
         public ServicePersistance(string serverIp, string dbname, string user, string pwd)
         {
-            _connectionString =
-                $"server={serverIp};database={dbname};uid={user};pwd={pwd};";
-
-            // Test connexion immédiat
-            using (var conn = OpenConnection())
-            {
-                conn.Close();
-            }
+            _connectionString = $"server={serverIp};database={dbname};uid={user};pwd={pwd};";
+            using (var conn = OpenConnection()) conn.Close();
         }
 
-        // SAUVEGARDE GRAPHE
         public uint SaveGraph(Graph g)
         {
             using (var conn = OpenConnection())
             {
-                // 1) INSERT Graphe
-                string sqlGraph =
-                    "INSERT INTO Graphe(est_oriente, nb_sommets) " +
-                    "VALUES(@o,@n); SELECT LAST_INSERT_ID();";
-
-                var cmdGraph = new MySqlCommand(sqlGraph, conn);
+                var cmdGraph = new MySqlCommand(
+                    "INSERT INTO Graphe(est_oriente, nb_sommets) VALUES(@o,@n); SELECT LAST_INSERT_ID();", conn);
                 cmdGraph.Parameters.AddWithValue("@o", g.IsOriented ? 1 : 0);
                 cmdGraph.Parameters.AddWithValue("@n", g.VertexCount);
-
                 uint graphId = Convert.ToUInt32(cmdGraph.ExecuteScalar());
 
-                // 2) Sommets
-                Dictionary<int, uint> ids = new Dictionary<int, uint>();
-
+                var ids = new Dictionary<int, uint>();
                 for (int i = 0; i < g.VertexCount; i++)
                 {
-                    string sqlSommet =
-                        "INSERT INTO Sommet(graphe_id, nom, valeur, indice) " +
-                        "VALUES(@gid,@nom,@val,@ind); SELECT LAST_INSERT_ID();";
-
-                    var cmdSommet = new MySqlCommand(sqlSommet, conn);
-                    cmdSommet.Parameters.AddWithValue("@gid", graphId);
-                    cmdSommet.Parameters.AddWithValue("@nom", "S" + i);
-                    cmdSommet.Parameters.AddWithValue("@val", 0);
-                    cmdSommet.Parameters.AddWithValue("@ind", i);
-
-                    uint sommetId = Convert.ToUInt32(cmdSommet.ExecuteScalar());
-                    ids[i] = sommetId;
+                    string nom = g.GetVertexName(i);
+                    var cmd = new MySqlCommand(
+                        "INSERT INTO Sommet(graphe_id, nom, valeur, indice) VALUES(@gid,@nom,@val,@ind); SELECT LAST_INSERT_ID();", conn);
+                    cmd.Parameters.AddWithValue("@gid", graphId);
+                    cmd.Parameters.AddWithValue("@nom", nom);
+                    cmd.Parameters.AddWithValue("@val", g.GetVertexValue(nom));
+                    cmd.Parameters.AddWithValue("@ind", i);
+                    ids[i] = Convert.ToUInt32(cmd.ExecuteScalar());
                 }
 
-                // 3) Arcs
                 for (int i = 0; i < g.VertexCount; i++)
-                {
                     for (int j = 0; j < g.VertexCount; j++)
                     {
-                        float poids = g.Matrix.GetValue(i, j);
-
-                        if (poids != float.PositiveInfinity && i != j)
+                        float p = g.Matrix.GetValue(i, j);
+                        if (!float.IsNaN(p))
                         {
-                            string sqlArc =
-                                "INSERT INTO Arc(graphe_id,sommet_source,sommet_dest,poids) " +
-                                "VALUES(@gid,@s,@d,@p)";
-
-                            var cmdArc = new MySqlCommand(sqlArc, conn);
-                            cmdArc.Parameters.AddWithValue("@gid", graphId);
-                            cmdArc.Parameters.AddWithValue("@s", ids[i]);
-                            cmdArc.Parameters.AddWithValue("@d", ids[j]);
-                            cmdArc.Parameters.AddWithValue("@p", poids);
-
-                            cmdArc.ExecuteNonQuery();
+                            var cmd = new MySqlCommand(
+                                "INSERT INTO Arc(graphe_id,sommet_source,sommet_dest,poids) VALUES(@gid,@s,@d,@p)", conn);
+                            cmd.Parameters.AddWithValue("@gid", graphId);
+                            cmd.Parameters.AddWithValue("@s", ids[i]);
+                            cmd.Parameters.AddWithValue("@d", ids[j]);
+                            cmd.Parameters.AddWithValue("@p", p);
+                            cmd.ExecuteNonQuery();
                         }
                     }
-                }
 
                 return graphId;
             }
         }
 
-        // CHARGER GRAPHE
         public Graph LoadGraph(uint id)
         {
             using (var conn = OpenConnection())
             {
-                bool oriented = false;
-                int nb = 0;
-
-                string sql1 = "SELECT est_oriente, nb_sommets FROM Graphe WHERE id=@id";
-                var cmd1 = new MySqlCommand(sql1, conn);
+                var cmd1 = new MySqlCommand("SELECT est_oriente, nb_sommets FROM Graphe WHERE id=@id", conn);
                 cmd1.Parameters.AddWithValue("@id", id);
+                bool oriented = false;
+                using (var r = cmd1.ExecuteReader())
+                    if (r.Read()) oriented = Convert.ToBoolean(r["est_oriente"]);
 
-                using (var reader = cmd1.ExecuteReader())
-                {
-                    if (reader.Read())
-                    {
-                        oriented = Convert.ToBoolean(reader["est_oriente"]);
-                        nb = Convert.ToInt32(reader["nb_sommets"]);
-                    }
-                }
+                var g = new Graph(oriented);
+                var map = new Dictionary<uint, int>();
 
-                Graph g = new Graph(nb, oriented);
-
-                Dictionary<uint, int> map = new Dictionary<uint, int>();
-
-                string sql2 =
-                    "SELECT id, indice FROM Sommet " +
-                    "WHERE graphe_id=@id ORDER BY indice";
-
-                var cmd2 = new MySqlCommand(sql2, conn);
+                var cmd2 = new MySqlCommand("SELECT id, nom, valeur, indice FROM Sommet WHERE graphe_id=@id ORDER BY indice", conn);
                 cmd2.Parameters.AddWithValue("@id", id);
-
-                using (var reader = cmd2.ExecuteReader())
-                {
-                    while (reader.Read())
+                using (var r = cmd2.ExecuteReader())
+                    while (r.Read())
                     {
-                        uint sid = Convert.ToUInt32(reader["id"]);
-                        int indice = Convert.ToInt32(reader["indice"]);
-                        map[sid] = indice;
+                        uint sid = Convert.ToUInt32(r["id"]);
+                        map[sid] = Convert.ToInt32(r["indice"]);
+                        g.AddVertex(r["nom"].ToString(), Convert.ToSingle(r["valeur"]));
                     }
-                }
 
-                string sql3 =
-                    "SELECT sommet_source, sommet_dest, poids " +
-                    "FROM Arc WHERE graphe_id=@id";
-
-                var cmd3 = new MySqlCommand(sql3, conn);
+                var cmd3 = new MySqlCommand("SELECT sommet_source, sommet_dest, poids FROM Arc WHERE graphe_id=@id", conn);
                 cmd3.Parameters.AddWithValue("@id", id);
-
-                using (var reader = cmd3.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        uint s = Convert.ToUInt32(reader["sommet_source"]);
-                        uint d = Convert.ToUInt32(reader["sommet_dest"]);
-                        float p = Convert.ToSingle(reader["poids"]);
-
-                        g.Matrix.SetValue(map[s], map[d], p);
-                    }
-                }
+                using (var r = cmd3.ExecuteReader())
+                    while (r.Read())
+                        g.Matrix.SetValue(map[Convert.ToUInt32(r["sommet_source"])], map[Convert.ToUInt32(r["sommet_dest"])], Convert.ToSingle(r["poids"]));
 
                 return g;
             }
         }
 
-        // SAUVEGARDE TOURNEE
         public uint SaveTour(uint graphId, Tour t)
         {
             using (var conn = OpenConnection())
             {
-                string sqlTour =
-                    "INSERT INTO Tournee(graphe_id, cout_total) " +
-                    "VALUES(@g,@c); SELECT LAST_INSERT_ID();";
-
-                var cmdTour = new MySqlCommand(sqlTour, conn);
+                var cmdTour = new MySqlCommand(
+                    "INSERT INTO Tournee(graphe_id, cout_total) VALUES(@g,@c); SELECT LAST_INSERT_ID();", conn);
                 cmdTour.Parameters.AddWithValue("@g", graphId);
                 cmdTour.Parameters.AddWithValue("@c", t.TotalCost);
-
                 uint tourId = Convert.ToUInt32(cmdTour.ExecuteScalar());
 
-                for (int i = 0; i < t.Path.Count; i++)
-                {
-                    string sql =
-                        "INSERT INTO EtapeTournee(tournee_id, numero_ordre, sommet_id) " +
-                        "SELECT @tid,@ord,id FROM Sommet " +
-                        "WHERE graphe_id=@gid AND indice=@ind";
+                List<int> indices = t.Path != null && t.Path.Count > 0
+                    ? t.Path
+                    : ResolveNamesToIndices(t.Vertices, graphId, conn);
 
-                    var cmd = new MySqlCommand(sql, conn);
+                for (int i = 0; i < indices.Count; i++)
+                {
+                    var cmd = new MySqlCommand(
+                        "INSERT INTO EtapeTournee(tournee_id, numero_ordre, sommet_id) SELECT @tid,@ord,id FROM Sommet WHERE graphe_id=@gid AND indice=@ind", conn);
                     cmd.Parameters.AddWithValue("@tid", tourId);
                     cmd.Parameters.AddWithValue("@ord", i);
                     cmd.Parameters.AddWithValue("@gid", graphId);
-                    cmd.Parameters.AddWithValue("@ind", t.Path[i]);
-
+                    cmd.Parameters.AddWithValue("@ind", indices[i]);
                     cmd.ExecuteNonQuery();
                 }
 
@@ -183,54 +119,59 @@ namespace TourneeFutee
             }
         }
 
-        // CHARGER TOURNEE
         public Tour LoadTour(uint id)
         {
             using (var conn = OpenConnection())
             {
                 float cout = 0;
-
-                string sql1 =
-                    "SELECT cout_total FROM Tournee WHERE id=@id";
-
-                var cmd1 = new MySqlCommand(sql1, conn);
+                uint graphId = 0;
+                var cmd1 = new MySqlCommand("SELECT graphe_id, cout_total FROM Tournee WHERE id=@id", conn);
                 cmd1.Parameters.AddWithValue("@id", id);
-
-                using (var reader = cmd1.ExecuteReader())
-                {
-                    if (reader.Read())
-                        cout = Convert.ToSingle(reader["cout_total"]);
-                }
-
-                List<int> chemin = new List<int>();
-
-                string sql2 =
-                    "SELECT s.indice " +
-                    "FROM EtapeTournee e " +
-                    "JOIN Sommet s ON e.sommet_id = s.id " +
-                    "WHERE e.tournee_id=@id " +
-                    "ORDER BY e.numero_ordre";
-
-                var cmd2 = new MySqlCommand(sql2, conn);
-                cmd2.Parameters.AddWithValue("@id", id);
-
-                using (var reader = cmd2.ExecuteReader())
-                {
-                    while (reader.Read())
+                using (var r = cmd1.ExecuteReader())
+                    if (r.Read())
                     {
-                        chemin.Add(Convert.ToInt32(reader["indice"]));
+                        cout = Convert.ToSingle(r["cout_total"]);
+                        graphId = Convert.ToUInt32(r["graphe_id"]);
                     }
-                }
 
-                Tour t = new Tour();
-                t.Path = chemin;
-                t.TotalCost = cout;
+                var indexToName = new Dictionary<int, string>();
+                var cmdNoms = new MySqlCommand("SELECT indice, nom FROM Sommet WHERE graphe_id=@gid", conn);
+                cmdNoms.Parameters.AddWithValue("@gid", graphId);
+                using (var r = cmdNoms.ExecuteReader())
+                    while (r.Read())
+                        indexToName[Convert.ToInt32(r["indice"])] = r["nom"].ToString();
 
-                return t;
+                var chemin = new List<int>();
+                var cmd2 = new MySqlCommand(
+                    "SELECT s.indice FROM EtapeTournee e JOIN Sommet s ON e.sommet_id = s.id WHERE e.tournee_id=@id ORDER BY e.numero_ordre", conn);
+                cmd2.Parameters.AddWithValue("@id", id);
+                using (var r = cmd2.ExecuteReader())
+                    while (r.Read())
+                        chemin.Add(Convert.ToInt32(r["indice"]));
+
+                var vertices = new List<string>();
+                foreach (int i in chemin)
+                    if (indexToName.ContainsKey(i)) vertices.Add(indexToName[i]);
+
+                return new Tour { Path = chemin, TotalCost = cout, Vertices = vertices };
             }
         }
 
-        // CONNEXION
+        private List<int> ResolveNamesToIndices(IList<string> names, uint graphId, MySqlConnection conn)
+        {
+            var nameToIndex = new Dictionary<string, int>();
+            var cmd = new MySqlCommand("SELECT nom, indice FROM Sommet WHERE graphe_id=@gid", conn);
+            cmd.Parameters.AddWithValue("@gid", graphId);
+            using (var r = cmd.ExecuteReader())
+                while (r.Read())
+                    nameToIndex[r["nom"].ToString()] = Convert.ToInt32(r["indice"]);
+
+            var indices = new List<int>();
+            foreach (string nom in names)
+                if (nameToIndex.ContainsKey(nom)) indices.Add(nameToIndex[nom]);
+            return indices;
+        }
+
         private MySqlConnection OpenConnection()
         {
             var conn = new MySqlConnection(_connectionString);
