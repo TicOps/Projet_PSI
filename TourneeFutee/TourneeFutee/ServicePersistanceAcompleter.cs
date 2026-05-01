@@ -1,148 +1,236 @@
 using System;
+using System.Collections.Generic;
 using MySql.Data.MySqlClient;
 
 namespace TourneeFutee
 {
-    /// <summary>
-    /// Service de persistance permettant de sauvegarder et charger
-    /// des graphes et des tournées dans une base de données MySQL.
-    /// </summary>
     public class ServicePersistance
     {
-        // ─────────────────────────────────────────────────────────────────────
-        // Attributs privés
-        // ─────────────────────────────────────────────────────────────────────
-
         private readonly string _connectionString;
 
-        // TODO : si vous avez besoin de maintenir une connexion ouverte,
-        //        ajoutez un attribut MySqlConnection ici.
-
-        // ─────────────────────────────────────────────────────────────────────
-        // Constructeur
-        // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Instancie un service de persistance et se connecte automatiquement
-        /// à la base de données <paramref name="dbname"/> sur le serveur
-        /// à l'adresse IP <paramref name="serverIp"/>.
-        /// Les identifiants sont définis par <paramref name="user"/> (utilisateur)
-        /// et <paramref name="pwd"/> (mot de passe).
-        /// </summary>
-        /// <param name="serverIp">Adresse IP du serveur MySQL.</param>
-        /// <param name="dbname">Nom de la base de données.</param>
-        /// <param name="user">Nom d'utilisateur.</param>
-        /// <param name="pwd">Mot de passe.</param>
-        /// <exception cref="Exception">Levée si la connexion échoue.</exception>
         public ServicePersistance(string serverIp, string dbname, string user, string pwd)
         {
-          // TODO : initialiser et ouvrir la connexion à la base de données
-        // Exemple :
-            _connectionString = $"server={serverIp};database={dbname};uid={user};pwd={pwd};";
+            _connectionString =
+                $"server={serverIp};database={dbname};uid={user};pwd={pwd};";
 
-            // TODO : tester la connexion dès la construction
-            //        (ouvrir puis fermer une connexion pour valider les paramètres)
-            throw new NotImplementedException("Constructeur non implémenté.");
+            // Test connexion immédiat
+            using (var conn = OpenConnection())
+            {
+                conn.Close();
+            }
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Méthodes publiques
-        // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Sauvegarde le graphe <paramref name="g"/> en base de données
-        /// (sommets et arcs inclus) et renvoie son identifiant.
-        /// </summary>
-        /// <param name="g">Le graphe à sauvegarder.</param>
-        /// <returns>Identifiant du graphe en base de données (AUTO_INCREMENT).</returns>
+        // SAUVEGARDE GRAPHE
         public uint SaveGraph(Graph g)
         {
-            // TODO : implémenter la sauvegarde du graphe
-            //
-            // Ordre recommandé :
-            //   1. INSERT dans la table Graphe -> récupérer l'id avec LAST_INSERT_ID()
-            //   2. Pour chaque sommet de g : INSERT dans Sommet (valeur + graphe_id)
-            //      -> conserver la correspondance sommet C# <-> id BdD
-            //   3. Pour chaque arc de la matrice d'adjacence (poids != +inf) :
-            //      INSERT dans Arc (sommet_source_id, sommet_dest_id, poids, graphe_id)
-            //
-            // Exemple pour récupérer l'id généré :
-            //   uint id = Convert.ToUInt32(cmd.ExecuteScalar());
+            using (var conn = OpenConnection())
+            {
+                // 1) INSERT Graphe
+                string sqlGraph =
+                    "INSERT INTO Graphe(est_oriente, nb_sommets) " +
+                    "VALUES(@o,@n); SELECT LAST_INSERT_ID();";
 
-            throw new NotImplementedException("SaveGraph non implémenté.");
+                var cmdGraph = new MySqlCommand(sqlGraph, conn);
+                cmdGraph.Parameters.AddWithValue("@o", g.IsOriented ? 1 : 0);
+                cmdGraph.Parameters.AddWithValue("@n", g.VertexCount);
+
+                uint graphId = Convert.ToUInt32(cmdGraph.ExecuteScalar());
+
+                // 2) Sommets
+                Dictionary<int, uint> ids = new Dictionary<int, uint>();
+
+                for (int i = 0; i < g.VertexCount; i++)
+                {
+                    string sqlSommet =
+                        "INSERT INTO Sommet(graphe_id, nom, valeur, indice) " +
+                        "VALUES(@gid,@nom,@val,@ind); SELECT LAST_INSERT_ID();";
+
+                    var cmdSommet = new MySqlCommand(sqlSommet, conn);
+                    cmdSommet.Parameters.AddWithValue("@gid", graphId);
+                    cmdSommet.Parameters.AddWithValue("@nom", "S" + i);
+                    cmdSommet.Parameters.AddWithValue("@val", 0);
+                    cmdSommet.Parameters.AddWithValue("@ind", i);
+
+                    uint sommetId = Convert.ToUInt32(cmdSommet.ExecuteScalar());
+                    ids[i] = sommetId;
+                }
+
+                // 3) Arcs
+                for (int i = 0; i < g.VertexCount; i++)
+                {
+                    for (int j = 0; j < g.VertexCount; j++)
+                    {
+                        float poids = g.Matrix.GetValue(i, j);
+
+                        if (poids != float.PositiveInfinity && i != j)
+                        {
+                            string sqlArc =
+                                "INSERT INTO Arc(graphe_id,sommet_source,sommet_dest,poids) " +
+                                "VALUES(@gid,@s,@d,@p)";
+
+                            var cmdArc = new MySqlCommand(sqlArc, conn);
+                            cmdArc.Parameters.AddWithValue("@gid", graphId);
+                            cmdArc.Parameters.AddWithValue("@s", ids[i]);
+                            cmdArc.Parameters.AddWithValue("@d", ids[j]);
+                            cmdArc.Parameters.AddWithValue("@p", poids);
+
+                            cmdArc.ExecuteNonQuery();
+                        }
+                    }
+                }
+
+                return graphId;
+            }
         }
 
-        /// <summary>
-        /// Charge depuis la base de données le graphe identifié par <paramref name="id"/>
-        /// et renvoie une instance de la classe <see cref="Graph"/>.
-        /// </summary>
-        /// <param name="id">Identifiant du graphe à charger.</param>
-        /// <returns>Instance de <see cref="Graph"/> reconstituée.</returns>
+        // CHARGER GRAPHE
         public Graph LoadGraph(uint id)
         {
-            // TODO : implémenter le chargement du graphe
-            //
-            // Ordre recommandé :
-            //   1. SELECT dans Graphe WHERE id = @id -> récupérer IsOriented, etc.
-            //   2. SELECT dans Sommet WHERE graphe_id = @id -> reconstruire les sommets
-            //      (respecter l'ordre d'insertion pour que les indices de la matrice
-            //       correspondent à ceux sauvegardés)
-            //   3. SELECT dans Arc WHERE graphe_id = @id -> reconstruire la matrice
-            //      d'adjacence en utilisant les correspondances sommet_id <-> indice
+            using (var conn = OpenConnection())
+            {
+                bool oriented = false;
+                int nb = 0;
 
-            throw new NotImplementedException("LoadGraph non implémenté.");
+                string sql1 = "SELECT est_oriente, nb_sommets FROM Graphe WHERE id=@id";
+                var cmd1 = new MySqlCommand(sql1, conn);
+                cmd1.Parameters.AddWithValue("@id", id);
+
+                using (var reader = cmd1.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        oriented = Convert.ToBoolean(reader["est_oriente"]);
+                        nb = Convert.ToInt32(reader["nb_sommets"]);
+                    }
+                }
+
+                Graph g = new Graph(nb, oriented);
+
+                Dictionary<uint, int> map = new Dictionary<uint, int>();
+
+                string sql2 =
+                    "SELECT id, indice FROM Sommet " +
+                    "WHERE graphe_id=@id ORDER BY indice";
+
+                var cmd2 = new MySqlCommand(sql2, conn);
+                cmd2.Parameters.AddWithValue("@id", id);
+
+                using (var reader = cmd2.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        uint sid = Convert.ToUInt32(reader["id"]);
+                        int indice = Convert.ToInt32(reader["indice"]);
+                        map[sid] = indice;
+                    }
+                }
+
+                string sql3 =
+                    "SELECT sommet_source, sommet_dest, poids " +
+                    "FROM Arc WHERE graphe_id=@id";
+
+                var cmd3 = new MySqlCommand(sql3, conn);
+                cmd3.Parameters.AddWithValue("@id", id);
+
+                using (var reader = cmd3.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        uint s = Convert.ToUInt32(reader["sommet_source"]);
+                        uint d = Convert.ToUInt32(reader["sommet_dest"]);
+                        float p = Convert.ToSingle(reader["poids"]);
+
+                        g.Matrix.SetValue(map[s], map[d], p);
+                    }
+                }
+
+                return g;
+            }
         }
 
-        /// <summary>
-        /// Sauvegarde la tournée <paramref name="t"/> (effectuée dans le graphe
-        /// identifié par <paramref name="graphId"/>) en base de données
-        /// et renvoie son identifiant.
-        /// </summary>
-        /// <param name="graphId">Identifiant BdD du graphe dans lequel la tournée a été calculée.</param>
-        /// <param name="t">La tournée à sauvegarder.</param>
-        /// <returns>Identifiant de la tournée en base de données (AUTO_INCREMENT).</returns>
+        // SAUVEGARDE TOURNEE
         public uint SaveTour(uint graphId, Tour t)
         {
-            // TODO : implémenter la sauvegarde de la tournée
-            //
-            // Ordre recommandé :
-            //   1. INSERT dans Tournee (cout_total, graphe_id) -> récupérer l'id
-            //   2. Pour chaque sommet de la séquence (avec son numéro d'ordre) :
-            //      INSERT dans EtapeTournee (tournee_id, numero_ordre, sommet_id)
-            //
-            // Attention : conserver l'ordre des étapes est essentiel pour
-            //             pouvoir reconstruire la tournée fidèlement au chargement.
+            using (var conn = OpenConnection())
+            {
+                string sqlTour =
+                    "INSERT INTO Tournee(graphe_id, cout_total) " +
+                    "VALUES(@g,@c); SELECT LAST_INSERT_ID();";
 
-            throw new NotImplementedException("SaveTour non implémenté.");
+                var cmdTour = new MySqlCommand(sqlTour, conn);
+                cmdTour.Parameters.AddWithValue("@g", graphId);
+                cmdTour.Parameters.AddWithValue("@c", t.TotalCost);
+
+                uint tourId = Convert.ToUInt32(cmdTour.ExecuteScalar());
+
+                for (int i = 0; i < t.Path.Count; i++)
+                {
+                    string sql =
+                        "INSERT INTO EtapeTournee(tournee_id, numero_ordre, sommet_id) " +
+                        "SELECT @tid,@ord,id FROM Sommet " +
+                        "WHERE graphe_id=@gid AND indice=@ind";
+
+                    var cmd = new MySqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@tid", tourId);
+                    cmd.Parameters.AddWithValue("@ord", i);
+                    cmd.Parameters.AddWithValue("@gid", graphId);
+                    cmd.Parameters.AddWithValue("@ind", t.Path[i]);
+
+                    cmd.ExecuteNonQuery();
+                }
+
+                return tourId;
+            }
         }
 
-        /// <summary>
-        /// Charge depuis la base de données la tournée identifiée par <paramref name="id"/>
-        /// et renvoie une instance de la classe <see cref="Tour"/>.
-        /// </summary>
-        /// <param name="id">Identifiant de la tournée à charger.</param>
-        /// <returns>Instance de <see cref="Tour"/> reconstituée.</returns>
+        // CHARGER TOURNEE
         public Tour LoadTour(uint id)
         {
-            // TODO : implémenter le chargement de la tournée
-            //
-            // Ordre recommandé :
-            //   1. SELECT dans Tournee WHERE id = @id -> récupérer cout_total et graphe_id
-            //   2. SELECT dans EtapeTournee JOIN Sommet WHERE tournee_id = @id
-            //      ORDER BY numero_ordre -> reconstruire la séquence ordonnée de sommets
-            //   3. Construire et retourner l'instance Tour
+            using (var conn = OpenConnection())
+            {
+                float cout = 0;
 
-            throw new NotImplementedException("LoadTour non implémenté.");
+                string sql1 =
+                    "SELECT cout_total FROM Tournee WHERE id=@id";
+
+                var cmd1 = new MySqlCommand(sql1, conn);
+                cmd1.Parameters.AddWithValue("@id", id);
+
+                using (var reader = cmd1.ExecuteReader())
+                {
+                    if (reader.Read())
+                        cout = Convert.ToSingle(reader["cout_total"]);
+                }
+
+                List<int> chemin = new List<int>();
+
+                string sql2 =
+                    "SELECT s.indice " +
+                    "FROM EtapeTournee e " +
+                    "JOIN Sommet s ON e.sommet_id = s.id " +
+                    "WHERE e.tournee_id=@id " +
+                    "ORDER BY e.numero_ordre";
+
+                var cmd2 = new MySqlCommand(sql2, conn);
+                cmd2.Parameters.AddWithValue("@id", id);
+
+                using (var reader = cmd2.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        chemin.Add(Convert.ToInt32(reader["indice"]));
+                    }
+                }
+
+                Tour t = new Tour();
+                t.Path = chemin;
+                t.TotalCost = cout;
+
+                return t;
+            }
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Méthodes utilitaires privées (à compléter selon vos besoins)
-        // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Crée et retourne une nouvelle connexion MySQL ouverte.
-        /// Encadrez toujours l'appel dans un bloc using pour garantir la fermeture.
-        /// </summary>
+        // CONNEXION
         private MySqlConnection OpenConnection()
         {
             var conn = new MySqlConnection(_connectionString);

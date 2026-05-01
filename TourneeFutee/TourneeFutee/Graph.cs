@@ -20,7 +20,33 @@ namespace TourneeFutee
             _valeursSommets = new Dictionary<string, float>();
         }
 
+        // constructeur utile pour LoadGraph(nb, orienté)
+        public Graph(int size, bool directed)
+        {
+            _directed = directed;
+            _adjacency = new Matrix(0, 0, float.NaN);
+            _nomsSommets = new List<string>();
+            _indicesSommets = new Dictionary<string, int>();
+            _valeursSommets = new Dictionary<string, float>();
+
+            for (int i = 0; i < size; i++)
+            {
+                AddVertex("S" + i, 0);
+            }
+        }
+
         public bool IsDirected
+        {
+            get { return _directed; }
+        }
+
+        public bool Directed
+        {
+            get { return _directed; }
+        }
+
+        // alias pour ServicePersistance
+        public bool IsOriented
         {
             get { return _directed; }
         }
@@ -30,20 +56,46 @@ namespace TourneeFutee
             get { return _nomsSommets.Count; }
         }
 
-        public object Directed { get; set; }
+        // alias pour ServicePersistance
+        public int VertexCount
+        {
+            get { return _nomsSommets.Count; }
+        }
+
+        // accès direct matrice
+        public Matrix Matrix
+        {
+            get { return _adjacency; }
+        }
+
+        public List<string> VertexNames
+        {
+            get { return _nomsSommets; }
+        }
 
         private int GetIndex(string nom)
         {
-            if (nom == null) throw new ArgumentNullException(nameof(nom));
-            if (!_indicesSommets.ContainsKey(nom)) throw new ArgumentException("Le sommet n'existe pas : " + nom);
+            if (nom == null)
+                throw new ArgumentNullException(nameof(nom));
+
+            if (!_indicesSommets.ContainsKey(nom))
+                throw new ArgumentException("Sommet inexistant : " + nom);
 
             return _indicesSommets[nom];
         }
 
+        public string GetVertexName(int index)
+        {
+            return _nomsSommets[index];
+        }
+
         public void AddVertex(string name, float value = 0)
         {
-            if (name == null) throw new ArgumentNullException(nameof(name));
-            if (_indicesSommets.ContainsKey(name)) throw new ArgumentException("Un sommet avec ce nom existe déjà.");
+            if (name == null)
+                throw new ArgumentNullException(nameof(name));
+
+            if (_indicesSommets.ContainsKey(name))
+                throw new ArgumentException("Sommet déjà existant.");
 
             int nouvelIndice = _nomsSommets.Count;
 
@@ -90,16 +142,12 @@ namespace TourneeFutee
             int j = GetIndex(destinationName);
 
             if (!float.IsNaN(_adjacency.GetValue(i, j)))
-            {
                 throw new ArgumentException("Cet arc existe déjà.");
-            }
 
             _adjacency.SetValue(i, j, weight);
 
             if (!_directed && i != j)
-            {
                 _adjacency.SetValue(j, i, weight);
-            }
         }
 
         public void RemoveEdge(string sourceName, string destinationName)
@@ -108,18 +156,13 @@ namespace TourneeFutee
             int j = GetIndex(destinationName);
 
             if (float.IsNaN(_adjacency.GetValue(i, j)))
-            {
                 throw new ArgumentException("Cet arc n'existe pas.");
-            }
 
             _adjacency.SetValue(i, j, float.NaN);
 
             if (!_directed && i != j)
-            {
                 _adjacency.SetValue(j, i, float.NaN);
-            }
         }
-
         public float GetEdgeWeight(string sourceName, string destinationName)
         {
             int i = GetIndex(sourceName);
@@ -128,9 +171,7 @@ namespace TourneeFutee
             float poids = _adjacency.GetValue(i, j);
 
             if (float.IsNaN(poids))
-            {
                 throw new ArgumentException("Cet arc n'existe pas.");
-            }
 
             return poids;
         }
@@ -141,21 +182,23 @@ namespace TourneeFutee
             int j = GetIndex(destinationName);
 
             if (float.IsNaN(_adjacency.GetValue(i, j)))
-            {
                 throw new ArgumentException("Cet arc n'existe pas.");
-            }
 
             _adjacency.SetValue(i, j, weight);
 
             if (!_directed && i != j)
-            {
                 _adjacency.SetValue(j, i, weight);
-            }
+        }
+
+        public bool ContainsVertex(string name)
+        {
+            return _indicesSommets.ContainsKey(name);
         }
 
         public List<string> GetNeighbors(string vertexName)
         {
             int i = GetIndex(vertexName);
+
             List<string> voisins = new List<string>();
 
             for (int j = 0; j < _adjacency.NbColumns; j++)
@@ -168,10 +211,6 @@ namespace TourneeFutee
 
             return voisins;
         }
-
-        public bool ContainsVertex(string name)
-        {
-            throw new NotImplementedException();
-        }
     }
+
 }
